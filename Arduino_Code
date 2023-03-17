@@ -106,9 +106,26 @@ void loop() {
   
 void state(){
   
-  if((L_Sensor == LOW) && (R_Sensor == LOW)){
-    reverse();
-  }
+    if((L_Sensor == HIGH) && (R_Sensor == HIGH)){//implies that the car has steered to the right
+        //solution: steer it to the left
+      forwards();   
+    }
+    //0 - detects black line, 1 - does not detect black line
+    if((L_Sensor == HIGH) && (R_Sensor == LOW)){//implies that the car has steered to the right
+      //solution: steer it to the left
+      turnRight();   
+      Serial.println("Turning right");
+    }
+    if((L_Sensor == LOW) && (R_Sensor == HIGH)){//implies that the car has steered to the left
+      //solution: steer it to the left  
+      turnLeft(); 
+      Serial.println("Turning left");
+    }
+
+    if((L_Sensor == LOW) && (R_Sensor == LOW)){//implies that the car has steered to the right
+        //solution: steer it to the left
+      forwards();   
+    }
 }
 
 //Checks for any obstacles around 10cm or less ahead
