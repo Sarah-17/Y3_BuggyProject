@@ -16,8 +16,14 @@ const int LMOTOR_2 = 5; //S4
 const int L_pwm = 16; 
 const int R_pwm = 17;
 
+/*
 const int LEYE = A5;
 const int REYE = A4;
+const int US_TRIG = 2;
+const int US_ECHO = 3; */
+
+const int LEYE = 18;
+const int REYE = 14;
 const int US_TRIG = 2;
 const int US_ECHO = 3;
 
@@ -93,10 +99,9 @@ void loop() {
   }
 
   if(curr_state != 'n'){
+    
     state();
-
     check_distance();
-
     if(distance < 10 ){
       //inform controller of obstacle ahead.
       client.write('o');
@@ -121,7 +126,6 @@ void state(){
       turnLeft(); 
       Serial.println("Turning left");
     }
-
     if((L_Sensor == LOW) && (R_Sensor == LOW)){//implies that the car has steered to the right
         //solution: steer it to the left
       forwards();   
@@ -153,18 +157,18 @@ void check_distance(){
 //Motor functions for speed and direction
 void forwards()
 {
-  analogWrite(LMOTOR_1, 170); // analogWrite allows us choose what voltage we send to the motor, instead of digitalWrite which is either full power or sero power
+  analogWrite(LMOTOR_1, 183); // analogWrite allows us choose what voltage we send to the motor, instead of digitalWrite which is either full power or sero power
   analogWrite(LMOTOR_2, 0);
-  analogWrite(RMOTOR_1, 187); // the right motor is slightly slower than the left one due to friction/wear/etc... so we give it a higher voltage than the left one (ie its been calibrated)
+  analogWrite(RMOTOR_1, 190); // the right motor is slightly slower than the left one due to friction/wear/etc... so we give it a higher voltage than the left one (ie its been calibrated)
   analogWrite(RMOTOR_2, 0);
 }
 
 void reverse()
 {
   analogWrite(LMOTOR_1, 0);
-  analogWrite(LMOTOR_2, 170);
+  analogWrite(LMOTOR_2, 183);
   analogWrite(RMOTOR_1, 0);
-  analogWrite(RMOTOR_2, 187);
+  analogWrite(RMOTOR_2, 190);
 }
 
 void breaks()
@@ -177,17 +181,16 @@ void breaks()
 
 void turnRight()
 {
-  analogWrite(LMOTOR_1, 255);
+  analogWrite(LMOTOR_1, 183);
   analogWrite(LMOTOR_2, 0);
-  analogWrite(RMOTOR_1, 150);
+  analogWrite(RMOTOR_1, 110);
   analogWrite(RMOTOR_2, 0);
 }
 
 void turnLeft()
 {
-  analogWrite(LMOTOR_1, 150);
+  analogWrite(LMOTOR_1, 103);
   analogWrite(LMOTOR_2, 0);
-  analogWrite(RMOTOR_1, 255);
+  analogWrite(RMOTOR_1, 190);
   analogWrite(RMOTOR_2, 0);
 }
-
