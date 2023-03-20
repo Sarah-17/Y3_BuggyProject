@@ -38,9 +38,13 @@ void draw() {
   //if an obstacle is detected nearby
   objectInfo = myClient.readChar();
     if(objectInfo == 'o'){
-      println("Object detected around 10cm");
+      println("Object detected around 20cm");
     }
    }
+   
+   
+   
+   
 }
 
 //mouseClicked event to perform an activity when the buttons are clicked
