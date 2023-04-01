@@ -15,14 +15,34 @@ const int LMOTOR_2 = 5;
 const int LEYE = A4; // left IR sensor is connected to Analogue Pin 4, etc...
 const int REYE = A5;
 
-const int US_TRIG = 7;
-const int US_ECHO = 8;
+const int US_TRIG = 3; //7;
+const int US_ECHO = 4; //8;
 
-// setup loop will set the board up before we can run our main loop
-void setup() 
-{
+//PID constants
+double kp = 10;
+double ki = 0.001;
+double kd = kp/2;
+
+unsigned long currentTime, previousTime;
+double elapsedTime;
+double error;
+double lastError;
+double input, output, setPoint;
+double cumError, rateError;
+
+//char curr_state;
+bool ismoving = false;
+int dist;
+
+void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
+
+  WiFi.beginAP(ssid, pass); 
+  IPAddress ip = WiFi.localIP(); 
+  Serial.print("IP Address:"); 
+  Serial.println(ip);  //prints arduino's IP to connect the Processing client
+  server.begin();
 
   pinMode(LMOTOR_1, OUTPUT); // here we're saying that the motors will be outputs, 
   pinMode(LMOTOR_2, OUTPUT); // ie. we're sending information (voltage) to them, not receiving any
@@ -34,32 +54,62 @@ void setup()
 
   pinMode(US_TRIG, OUTPUT);
   pinMode(US_ECHO, INPUT);
+  pinMode(2, INPUT_PULLUP);
+
+  setPoint = 10;
 
 }
 
-int distance;
-
 void loop() {
+  // put your main code here, to run repeatedly:
 
-  distance = ultra_poll();
+  WiFiClient client = server.available();
+  char curr_state = client.read();
 
-  if (distance > 10)
-  {
-    if (digitalRead(LEYE) == HIGH && digitalRead(REYE) == HIGH || digitalRead(LEYE) == LOW && digitalRead(REYE) == LOW)
-    {
-      forward();
-    }
-    if (digitalRead(LEYE) == HIGH && digitalRead(REYE) == LOW) // if left is black and right is white (ie. the line is to the right, we turn right to get it back in center)
-    {
-      spin_right();
-    }
-    if (digitalRead(LEYE) == LOW && digitalRead(REYE) == HIGH)
-    {
-      spin_left();
-    }
+
+  if(curr_state == 'y'){
+    ismoving = true;
   }
-  else 
-  {
+  else if(curr_state == 'n'){
+    ismoving = false;
+  }
+
+  dist = ultra_poll();
+  
+  if(dist > 10) {
+
+    int distance = (int)(dist);
+      
+    if(ismoving){
+
+      input = analogRead(A0);                //read from rotary encoder connected to A0
+      output = computePID(input);
+      delay(100);
+
+
+      if (digitalRead(LEYE) == HIGH && digitalRead(REYE) == HIGH || digitalRead(LEYE) == LOW && digitalRead(REYE) == LOW)
+        {
+          forward();
+          if(distance > 30 && distance < 70) {
+            analogWrite(LMOTOR_1, output);                //control the motor based on PID value
+            analogWrite(RMOTOR_1, output+17);
+          }
+        }
+        if (digitalRead(LEYE) == HIGH && digitalRead(REYE) == LOW) // if left is black and right is white (ie. the line is to the right, we turn right to get it back in center)
+        {
+          spin_right();
+        }
+        if (digitalRead(LEYE) == LOW && digitalRead(REYE) == HIGH)
+        {
+          spin_left();
+        }
+     }
+     else{
+       stop();
+     }
+  }
+
+  else{
     stop();
   }
 }
@@ -68,18 +118,18 @@ void loop() {
 // here the different function for turning the wheels are defined, using functions makes way more sense than telling each motor what to do every time
 void forward()
 {
-  analogWrite(LMOTOR_1, 200); // analogWrite allows us choose what voltage we send to the motor, instead of digitalWrite which is either full power or sero power
+  analogWrite(LMOTOR_1, 150); // analogWrite allows us choose what voltage we send to the motor, instead of digitalWrite which is either full power or sero power
   analogWrite(LMOTOR_2, 0);
-  analogWrite(RMOTOR_1, 210); // the right motor is slightly slower than the left one due to friction/wear/etc... so we give it a higher voltage than the left one (ie its been calibrated)
+  analogWrite(RMOTOR_1, 163); // the right motor is slightly slower than the left one due to friction/wear/etc... so we give it a higher voltage than the left one (ie its been calibrated)
   analogWrite(RMOTOR_2, 0);
 }
 
 void reverse()
 {
   analogWrite(LMOTOR_1, 0);
-  analogWrite(LMOTOR_2, 200);
+  analogWrite(LMOTOR_2, 150);
   analogWrite(RMOTOR_1, 0);
-  analogWrite(RMOTOR_2, 210);
+  analogWrite(RMOTOR_2, 163);
 }
 
 void stop()
@@ -100,7 +150,7 @@ void spin_left()
 
 void spin_right()
 {
-   analogWrite(LMOTOR_1, 255);
+  analogWrite(LMOTOR_1, 255);
   analogWrite(LMOTOR_2, 0);
   analogWrite(RMOTOR_1, 255);
   analogWrite(RMOTOR_2, 255);
@@ -124,7 +174,7 @@ void turn_left()
 
 int ultra_poll()
 {
-  int distance;
+  int dist;
   long duration;
 
   digitalWrite( US_TRIG, LOW );
@@ -135,7 +185,23 @@ int ultra_poll()
 
   duration = pulseIn( US_ECHO, HIGH );
 
-  distance = duration/58;
+  dist = duration/58;
 
-  return distance;
+  return dist;
+}
+
+double computePID(double inp){     
+  currentTime = millis();                //get current time
+  elapsedTime = (double)(currentTime - previousTime);        //compute time elapsed from previous computation
+  
+  error = setPoint - inp;                                // determine error
+  cumError += error * elapsedTime;                // compute integral
+  rateError = (error - lastError)/elapsedTime;   // compute derivative
+
+  double out = kp*error + ki*cumError + kd*rateError;                //PID output               
+
+  lastError = error;                                //remember current error
+  previousTime = currentTime;                        //remember current time
+
+  return out;                                        //have function return the PID output
 }
