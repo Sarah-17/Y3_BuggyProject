@@ -1,0 +1,89 @@
+const int RMOTOR_1 = 9;
+const int RMOTOR_2 = 10;
+const int LMOTOR_1 = 6;
+const int LMOTOR_2 = 5;
+
+const int LEYE = A4; // left IR sensor is connected to Analogue Pin 4, etc...
+const int REYE = A5;
+
+const int US_TRIG = 3; //7;
+const int US_ECHO = 4; //8;
+
+const int encoderPin = 2;
+const int ENC_COUNT_REV = 486;
+bool Direction_right = true;
+
+int interval = 1000; // 1 second interval for measurements
+
+long previousMillis = 0;
+long currentMillis = 0;
+float rpm_right = 0;
+
+float ang_velocity_right = 0;
+float ang_velocity_right_deg = 0;
+
+const float rpm_to_radians = 0.1047197551;  // (2 * PI ) / 60
+const float rad_to_deg = 57.29578; // 360 / (2 * PI)
+
+/*
+ * Author: Automatic Addison
+ * Website: https://automaticaddison.com
+ * Description: Count the number of encoder pulses per revolution.  
+ */
+ 
+// Encoder output to Arduino Interrupt pin. Tracks the pulse count.
+//#define ENC_IN_RIGHT_A 2
+ 
+// Keep track of the number of right wheel pulses
+volatile long right_wheel_pulse_count = 0;
+ 
+void setup() {
+ 
+  // Open the serial port at 9600 bps
+  Serial.begin(9600); 
+ 
+  pinMode(LMOTOR_1, OUTPUT); // here we're saying that the motors will be outputs, 
+  pinMode(LMOTOR_2, OUTPUT); // ie. we're sending information (voltage) to them, not receiving any
+  pinMode(RMOTOR_1, OUTPUT);
+  pinMode(RMOTOR_2, OUTPUT);
+
+  pinMode(encoderPin, INPUT_PULLUP); //NOTE: encoder is connected to 5V 
+
+  // Every time the pin goes high, this is a pulse
+  attachInterrupt(digitalPinToInterrupt(encoderPin), right_wheel_pulse, RISING);
+   
+}
+
+/*
+  Calculating velocity of DC Motor
+
+  v = w * r
+
+  v - linear velocity
+  w -- angular velocity
+  r -- radius
+
+*/
+ 
+void loop() {
+
+    //forward();
+  
+    Serial.print(" Pulses: ");
+    Serial.println(right_wheel_pulse_count);  
+}
+ 
+// Increment the number of pulses by 1
+void right_wheel_pulse() {
+
+    right_wheel_pulse_count++;
+  
+}
+
+void forward()
+{
+  analogWrite(LMOTOR_1, 207); //207 analogWrite allows us choose what voltage we send to the motor, instead of digitalWrite which is either full power or sero power
+  analogWrite(LMOTOR_2, 0);
+  analogWrite(RMOTOR_1, 180); //180 the right motor is slightly slower than the left one due to friction/wear/etc... so we give it a higher voltage than the left one (ie its been calibrated)
+  analogWrite(RMOTOR_2, 0);
+}
