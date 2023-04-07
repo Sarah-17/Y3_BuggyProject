@@ -32,7 +32,10 @@ double cumError, rateError;
 
 //char curr_state;
 bool ismoving = false;
-int dist;
+int distance;
+int prev;
+float t2;
+float t1 = 0;
 
 void setup() {
   // put your setup code here, to run once:
@@ -57,15 +60,16 @@ void setup() {
   pinMode(2, INPUT_PULLUP);
 
   setPoint = 10;
+  prev = digitalRead(2);
 
 }
+int num;
 
 void loop() {
   // put your main code here, to run repeatedly:
 
   WiFiClient client = server.available();
   char curr_state = client.read();
-
 
   if(curr_state == 'y'){
     ismoving = true;
@@ -74,13 +78,20 @@ void loop() {
     ismoving = false;
   }
 
-  dist = ultra_poll();
+  distance = ultra_poll();
   
-  if(dist > 10) {
+  if((distance < 10) && (ismoving))
+  {   
+    stop(); 
+    server.write(10);
+  }
+  
+  else
+  {
 
-    int distance = (int)(dist);
-      
     if(ismoving){
+
+      server.write(30);
 
       input = analogRead(A0);                //read from rotary encoder connected to A0
       output = computePID(input);
@@ -88,46 +99,59 @@ void loop() {
 
 
       if (digitalRead(LEYE) == HIGH && digitalRead(REYE) == HIGH || digitalRead(LEYE) == LOW && digitalRead(REYE) == LOW)
-        {
-          forward();
-          if(distance > 30 && distance < 70) {
-            analogWrite(LMOTOR_1, output);                //control the motor based on PID value
-            analogWrite(RMOTOR_1, output+17);
-          }
+      {
+        forward();
+        if(distance > 30 && distance < 70) {
+          analogWrite(LMOTOR_1, output+27);                //control the motor based on PID value
+          analogWrite(RMOTOR_1, output);
         }
-        if (digitalRead(LEYE) == HIGH && digitalRead(REYE) == LOW) // if left is black and right is white (ie. the line is to the right, we turn right to get it back in center)
-        {
-          spin_right();
-        }
-        if (digitalRead(LEYE) == LOW && digitalRead(REYE) == HIGH)
-        {
-          spin_left();
-        }
-     }
-     else{
+      }
+      if (digitalRead(LEYE) == HIGH && digitalRead(REYE) == LOW) // if left is black and right is white (ie. the line is to the right, we turn right to get it back in center)
+      {
+        spin_right();
+      }
+      if (digitalRead(LEYE) == LOW && digitalRead(REYE) == HIGH)
+      {
+        spin_left();
+      }
+    }
+    else{ //if not moving
        stop();
      }
   }
+    
 
-  else{
-    stop();
-  }
+  //Reading from velocity of buggy from encoder 
+  //Velocity is measured in cm/s
+
+  if (digitalRead(2) != prev)
+    {
+      t2 = millis();
+      float velocity = ((0.2127120026 * 100) / ((t2 - t1))); //cm/s
+      Serial.println(velocity);
+      Serial.println("--");
+      t1 = t2;
+      
+      prev = digitalRead(2);
+    }
+
+
 }
 
 //FUNCTIONS FOR CONTROL
 // here the different function for turning the wheels are defined, using functions makes way more sense than telling each motor what to do every time
 void forward()
 {
-  analogWrite(LMOTOR_1, 150); // analogWrite allows us choose what voltage we send to the motor, instead of digitalWrite which is either full power or sero power
+  analogWrite(LMOTOR_1, 207); //207 analogWrite allows us choose what voltage we send to the motor, instead of digitalWrite which is either full power or sero power
   analogWrite(LMOTOR_2, 0);
-  analogWrite(RMOTOR_1, 163); // the right motor is slightly slower than the left one due to friction/wear/etc... so we give it a higher voltage than the left one (ie its been calibrated)
+  analogWrite(RMOTOR_1, 180); //180 the right motor is slightly slower than the left one due to friction/wear/etc... so we give it a higher voltage than the left one (ie its been calibrated)
   analogWrite(RMOTOR_2, 0);
 }
 
 void reverse()
 {
   analogWrite(LMOTOR_1, 0);
-  analogWrite(LMOTOR_2, 150);
+  analogWrite(LMOTOR_2, 170);
   analogWrite(RMOTOR_1, 0);
   analogWrite(RMOTOR_2, 163);
 }
@@ -205,3 +229,4 @@ double computePID(double inp){
 
   return out;                                        //have function return the PID output
 }
+
