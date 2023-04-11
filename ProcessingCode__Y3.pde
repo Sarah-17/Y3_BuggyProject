@@ -3,7 +3,11 @@ import controlP5.*;
 
 ControlP5 cp5;
 Client myClient;
-char objectInfo;
+int dist;
+int data = 0;
+int prevData = 0;
+int buggyVel=0;
+Slider slider1;
 Println console;
 
 void setup() {
@@ -19,32 +23,60 @@ void setup() {
   //Creates two buttons and sets their value, size and position
   cp5.addButton("Start")
   .setValue(0)
-  .setPosition(200, 150)
+  .setPosition(250, 150)
   .setSize(100,100);
   
   cp5.addButton("Stop")
   .setValue(0)
-  .setPosition(500,150)
+  .setPosition(550,150)
   .setSize(100,100);
-}
+  
+  slider1 = cp5.addSlider("buggyVel").setPosition(250,300).setRange(0,225)
+     .setSize(400,30);
+  //Making a velocity slider
 
+  
+   /*cp5.addSlider("buggyVel")
+     .setPosition(250,300)
+     .setSize(400,30)
+     .setRange(0,225)
+     .setValue(buggyVel);
+  
+   
+   /*  cp5.addTextfield("Buggy's Velocity")
+    .setPosition(250, 300)
+    .setSize(400, 40)
+    .setFocus(true)
+    .setColor(color(255, 0, 0));
+  */
+  
+  data = 0;
+  buggyVel = 0;
+}
+int i = 0;
 
 
 void draw() {
-  delay(1000);
   
-  if (myClient.active()){
-  //read information from the server and print message 
-  //if an obstacle is detected nearby
-  objectInfo = myClient.readChar();
-    if(objectInfo == 'o'){
-      println("Object detected around 20cm");
-    }
+  dist = myClient.read();
+  
+  if((prevData != dist) && (dist == 10 || dist == 30)){
+    
+   data = dist;
+   
+   if(dist == 10){
+    println("Obstacle detected");
    }
    
-   
-   
-   
+   else if(dist == 30){
+    println("No obstacle detected");
+   }
+  }
+  
+  prevData = data;
+  
+  //removes all the previous data stored there
+  myClient.clear(); 
 }
 
 //mouseClicked event to perform an activity when the buttons are clicked
