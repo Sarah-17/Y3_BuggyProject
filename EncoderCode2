@@ -1,0 +1,304 @@
+#include <stdlib.h>
+
+//Set up the username and password for the WAP
+#include <WiFiNINA.h>
+char ssid[] = "TeamY3"; 
+char pass[] = "#icecream"; 
+
+WiFiServer server(5200);
+
+const int RMOTOR_1 = 9;
+const int RMOTOR_2 = 10;
+const int LMOTOR_1 = 6;
+const int LMOTOR_2 = 5;
+
+const int LEYE = A4; // left IR sensor is connected to Analogue Pin 4, etc...
+const int REYE = A5;
+
+const int US_TRIG = 3; //7;
+const int US_ECHO = 4; //8;
+
+//PID constants
+double kp = 10;
+double ki = 0.001;
+double kd = kp/2;
+
+unsigned long currentTime, previousTime;
+double elapsedTime;
+double error;
+double lastError;
+double input, output, setPoint;
+double cumError, rateError;
+
+
+const int encoderPin = 2;
+const int ENC_COUNT_REV = 486;
+bool Direction_right = true;
+
+int interval = 1000; // 1 second interval for measurements
+
+long previousMillis = 0;
+long currentMillis = 0;
+float rpm = 0;
+float prev_rpm = 0;
+
+float ang_velocity = 0;
+float ang_velocity_deg = 0;
+
+const float rpm_to_radians = 0.1047197551;  // (2 * PI ) / 60
+const float rad_to_deg = 57.29578; // 360 / (2 * PI)
+
+bool ismoving = false;
+int distance;
+char buff[10];
+/*
+ * Author: Automatic Addison
+ * Website: https://automaticaddison.com
+ * Description: Count the number of encoder pulses per revolution.  
+ */
+ 
+// Encoder output to Arduino Interrupt pin. Tracks the pulse count.
+//#define ENC_IN_RIGHT_A 2
+ 
+// Keep track of the number of right wheel pulses
+volatile long right_wheel_pulse_count = 0;
+ 
+void setup() {
+ 
+  // Open the serial port at 9600 bps
+  Serial.begin(9600); 
+
+  WiFi.beginAP(ssid, pass); 
+  IPAddress ip = WiFi.localIP(); 
+  Serial.print("IP Address:"); 
+  Serial.println(ip);  //prints arduino's IP to connect the Processing client
+  server.begin();
+ 
+  pinMode(LMOTOR_1, OUTPUT); // here we're saying that the motors will be outputs, 
+  pinMode(LMOTOR_2, OUTPUT); // ie. we're sending information (voltage) to them, not receiving any
+  pinMode(RMOTOR_1, OUTPUT);
+  pinMode(RMOTOR_2, OUTPUT);
+
+  pinMode(LEYE, INPUT); // we are receiving information from the IR sensors, so they are inputs
+  pinMode(REYE, INPUT);  
+  
+  pinMode(US_TRIG, OUTPUT);
+  pinMode(US_ECHO, INPUT);
+  pinMode(encoderPin, INPUT_PULLUP); //NOTE: encoder is connected to 5V 
+
+  // Every time the pin goes high, this is a pulse
+  attachInterrupt(digitalPinToInterrupt(encoderPin), right_wheel_pulse, RISING);
+  
+  setPoint = 10;
+}
+
+
+
+/*
+  Calculating velocity of DC Motor
+
+  v = w * r
+
+  v - linear velocity
+  w -- angular velocity
+  r -- radius
+
+*/
+ 
+void loop() {
+
+  WiFiClient client = server.available();
+  char curr_state = client.read();
+
+  if(curr_state == 'y'){
+    ismoving = true;
+  }
+  else if(curr_state == 'n'){
+    ismoving = false;
+  }
+
+
+  distance = ultra_poll();
+  
+  if((distance < 10) && (ismoving))
+  {   
+    stop(); 
+    server.write(10);
+  }
+  
+  else
+  {
+    if(ismoving){
+
+      server.write(30);
+
+      if(currentMillis - previousMillis > interval){
+
+        previousMillis = currentMillis;
+
+        rpm = (float)(right_wheel_pulse_count * 60 / ENC_COUNT_REV); //60 seconds
+        ang_velocity = rpm * rpm_to_radians;
+        ang_velocity_deg = ang_velocity * rad_to_deg;
+
+
+        right_wheel_pulse_count = 0;
+
+        /* String buffer: like a string, which can have its content and length any point in time varied. */
+          snprintf(buff, 10, "%f", rpm);
+          server.write(buff, 10);
+        
+      }
+      currentMillis = millis();
+
+      input = analogRead(A0);                //read from rotary encoder connected to A0
+      output = computePID(input);
+      delay(100);
+
+
+      if (digitalRead(LEYE) == HIGH && digitalRead(REYE) == HIGH || digitalRead(LEYE) == LOW && digitalRead(REYE) == LOW)
+      {
+        forward();
+        if(distance > 30 && distance < 70) {
+          analogWrite(LMOTOR_1, output+27);                //control the motor based on PID value
+          analogWrite(RMOTOR_1, output);
+        }
+      }
+      if (digitalRead(LEYE) == HIGH && digitalRead(REYE) == LOW) // if left is black and right is white (ie. the line is to the right, we turn right to get it back in center)
+      {
+        spin_right();
+      }
+      if (digitalRead(LEYE) == LOW && digitalRead(REYE) == HIGH)
+      {
+        spin_left();
+      }
+    }
+
+    else{ //if not moving
+       stop();
+    }
+  }
+
+}
+ 
+// Increment the number of pulses by 1
+void right_wheel_pulse() {
+
+  int val = digitalRead(encoderPin);
+
+  if(val == HIGH)
+  {
+    right_wheel_pulse_count++;
+  }
+
+  
+}
+
+void forward()
+{
+  analogWrite(LMOTOR_1, 207); //207 analogWrite allows us choose what voltage we send to the motor, instead of digitalWrite which is either full power or sero power
+  analogWrite(LMOTOR_2, 0);
+  analogWrite(RMOTOR_1, 180); //180 the right motor is slightly slower than the left one due to friction/wear/etc... so we give it a higher voltage than the left one (ie its been calibrated)
+  analogWrite(RMOTOR_2, 0);
+}
+
+
+void stop()
+{
+  analogWrite(LMOTOR_1, 0); //207 analogWrite allows us choose what voltage we send to the motor, instead of digitalWrite which is either full power or sero power
+  analogWrite(LMOTOR_2, 0);
+  analogWrite(RMOTOR_1, 0); //180 the right motor is slightly slower than the left one due to friction/wear/etc... so we give it a higher voltage than the left one (ie its been calibrated)
+  analogWrite(RMOTOR_2, 0);
+}
+
+void reverse()
+{
+  analogWrite(LMOTOR_1, 0);
+  analogWrite(LMOTOR_2, 170);
+  analogWrite(RMOTOR_1, 0);
+  analogWrite(RMOTOR_2, 163);
+}
+
+void spin_left()
+{
+  analogWrite(LMOTOR_1, 255);
+  analogWrite(LMOTOR_2, 255);
+  analogWrite(RMOTOR_1, 255);
+  analogWrite(RMOTOR_2, 0);
+}
+
+void spin_right()
+{
+  analogWrite(LMOTOR_1, 255);
+  analogWrite(LMOTOR_2, 0);
+  analogWrite(RMOTOR_1, 255);
+  analogWrite(RMOTOR_2, 255);
+}
+
+void turn_right()
+{
+  analogWrite(LMOTOR_1, 255);
+  analogWrite(LMOTOR_2, 0);
+  analogWrite(RMOTOR_1, 150);
+  analogWrite(RMOTOR_2, 0);
+}
+
+void turn_left()
+{
+  analogWrite(LMOTOR_1, 150);
+  analogWrite(LMOTOR_2, 0);
+  analogWrite(RMOTOR_1, 255);
+  analogWrite(RMOTOR_2, 0);
+}
+
+int ultra_poll()
+{
+  int dist;
+  long duration;
+
+  digitalWrite( US_TRIG, LOW );
+  delayMicroseconds(2);
+  digitalWrite( US_TRIG, HIGH );
+  delayMicroseconds( 10 );
+  digitalWrite( US_TRIG, LOW );
+
+  duration = pulseIn( US_ECHO, HIGH );
+
+  dist = duration/58;
+
+  return dist;
+}
+
+double computePID(double inp){     
+  currentTime = millis();                //get current time
+  elapsedTime = (double)(currentTime - previousTime);        //compute time elapsed from previous computation
+  
+  error = setPoint - inp;                                // determine error
+  cumError += error * elapsedTime;                // compute integral
+  rateError = (error - lastError)/elapsedTime;   // compute derivative
+
+  double out = kp*error + ki*cumError + kd*rateError;                //PID output               
+
+  lastError = error;                                //remember current error
+  previousTime = currentTime;                        //remember current time
+
+  return out;                                        //have function return the PID output
+}
+
+/*
+  
+    Serial.print("Pulses: ");
+    Serial.println(right_wheel_pulse_count);
+
+    Serial.print("Speed: ");
+    Serial.print(rpm);
+    Serial.println(" RPM");
+
+    Serial.print(" Angular Velocity: ");
+    Serial.print(rpm);
+    Serial.print(" rad per second");
+    Serial.print("\t");
+
+    Serial.print(ang_velocity_deg);
+    Serial.println(" deg per second");
+    Serial.println();
+*/
