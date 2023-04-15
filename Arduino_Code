@@ -4,17 +4,19 @@ char ssid[] = "TeamY3";
 char pass[] = "#icecream"; 
 
 WiFiServer server(5200);
-// Code to controll the DC Motors using information from the IR Sensors
+// Code to control the DC Motors using information from the IR Sensors
 
-// Here we define which pin on the arduino each component is attached to
+// pins connecting arduino to motors through hbridge
 const int RMOTOR_1 = 9;
 const int RMOTOR_2 = 10;
 const int LMOTOR_1 = 6;
 const int LMOTOR_2 = 5;
 
-const int LEYE = A4; // left IR sensor is connected to Analogue Pin 4, etc...
+//IR sensors
+const int LEYE = A4; 
 const int REYE = A5;
 
+//Ultrasonic sensors
 const int US_TRIG = 3; //7;
 const int US_ECHO = 4; //8;
 
@@ -30,36 +32,39 @@ double lastError;
 double input, output, setPoint;
 double cumError, rateError;
 
-//char curr_state;
+char curr_state = 'n';
 bool ismoving = false;
 int distance;
 int prev;
-float t2;
-float t1 = 0;
+float currMillis;
+float prevMillis = 0;
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
 
+  //setup WiFi
   WiFi.beginAP(ssid, pass); 
   IPAddress ip = WiFi.localIP(); 
   Serial.print("IP Address:"); 
-  Serial.println(ip);  //prints arduino's IP to connect the Processing client
+  Serial.println(ip);       //prints arduino's IP to connect the Processing client
   server.begin();
 
-  pinMode(LMOTOR_1, OUTPUT); // here we're saying that the motors will be outputs, 
-  pinMode(LMOTOR_2, OUTPUT); // ie. we're sending information (voltage) to them, not receiving any
+  //motors perform given information --- i.e. OUTPUT pins
+  pinMode(LMOTOR_1, OUTPUT); 
+  pinMode(LMOTOR_2, OUTPUT); 
   pinMode(RMOTOR_1, OUTPUT);
   pinMode(RMOTOR_2, OUTPUT);
 
-  pinMode(LEYE, INPUT); // we are receiving information from the IR sensors, so they are inputs
+  //IR sensors recieve information --- i.e. INPUT pins
+  pinMode(LEYE, INPUT); 
   pinMode(REYE, INPUT);
 
   pinMode(US_TRIG, OUTPUT);
   pinMode(US_ECHO, INPUT);
   pinMode(2, INPUT_PULLUP);
 
-  setPoint = 10;
+  setPoint = 10; 
   prev = digitalRead(2);
 
 }
@@ -80,6 +85,7 @@ void loop() {
 
   distance = ultra_poll();
   
+  //Condition 1: if buggy is moving, stop buggy if close object is detected  
   if((distance < 10) && (ismoving))
   {   
     stop(); 
@@ -88,7 +94,7 @@ void loop() {
   
   else
   {
-
+    //Condition 2: If there is no object closeby, move buggy
     if(ismoving){
 
       server.write(30);
@@ -106,31 +112,37 @@ void loop() {
           analogWrite(RMOTOR_1, output);
         }
       }
-      if (digitalRead(LEYE) == HIGH && digitalRead(REYE) == LOW) // if left is black and right is white (ie. the line is to the right, we turn right to get it back in center)
+
+      // if left detects black and right is white (ie. the line is to the right, we turn right to get it back in center)
+      if (digitalRead(LEYE) == HIGH && digitalRead(REYE) == LOW) 
       {
         spin_right();
       }
+
       if (digitalRead(LEYE) == LOW && digitalRead(REYE) == HIGH)
       {
         spin_left();
       }
+      
     }
-    else{ //if not moving
+
+    //Condition 3: If client request to stop, then stop buggy
+    else{ 
        stop();
      }
   }
     
 
   //Reading from velocity of buggy from encoder 
-  //Velocity is measured in cm/s
+  //Measuring velocity in cm/s
 
   if (digitalRead(2) != prev)
     {
-      t2 = millis();
-      float velocity = ((0.2127120026 * 100) / ((t2 - t1))); //cm/s
+      currMillis = millis();
+      float velocity = ((0.2127120026 * 100) / ((currMillis - prevMillis))); //cm/s
       Serial.println(velocity);
       Serial.println("--");
-      t1 = t2;
+      prevMillis = currMillis;
       
       prev = digitalRead(2);
     }
@@ -138,13 +150,15 @@ void loop() {
 
 }
 
-//FUNCTIONS FOR CONTROL
-// here the different function for turning the wheels are defined, using functions makes way more sense than telling each motor what to do every time
+//FUNCTIONS TO CONTROL MOTORS
+
+//Motion controls: Control direction of the buggy
+// Right motor is slightly slower than the left one due to friction/wear/etc... so we give it a higher voltage than the left one (ie its been calibrated)
 void forward()
 {
-  analogWrite(LMOTOR_1, 207); //207 analogWrite allows us choose what voltage we send to the motor, instead of digitalWrite which is either full power or sero power
+  analogWrite(LMOTOR_1, 207);
   analogWrite(LMOTOR_2, 0);
-  analogWrite(RMOTOR_1, 180); //180 the right motor is slightly slower than the left one due to friction/wear/etc... so we give it a higher voltage than the left one (ie its been calibrated)
+  analogWrite(RMOTOR_1, 180); 
   analogWrite(RMOTOR_2, 0);
 }
 
@@ -196,6 +210,7 @@ void turn_left()
   analogWrite(RMOTOR_2, 0);
 }
 
+// Ultrasonic Contol: calculates distance between object detected and buggy's position
 int ultra_poll()
 {
   int dist;
@@ -214,15 +229,16 @@ int ultra_poll()
   return dist;
 }
 
+//PID Control: adjust the speed of the buggy in reaction to speed of the object in front.
 double computePID(double inp){     
-  currentTime = millis();                //get current time
+  currentTime = millis();                             //get current time
   elapsedTime = (double)(currentTime - previousTime);        //compute time elapsed from previous computation
   
-  error = setPoint - inp;                                // determine error
-  cumError += error * elapsedTime;                // compute integral
+  error = setPoint - inp;                              // determine error
+  cumError += error * elapsedTime;                  // compute integral
   rateError = (error - lastError)/elapsedTime;   // compute derivative
 
-  double out = kp*error + ki*cumError + kd*rateError;                //PID output               
+  double out = kp*error + ki*cumError + kd*rateError;        //PID output               
 
   lastError = error;                                //remember current error
   previousTime = currentTime;                        //remember current time
