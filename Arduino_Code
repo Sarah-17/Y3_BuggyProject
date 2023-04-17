@@ -6,7 +6,7 @@ char pass[] = "#icecream";
 WiFiServer server(5200);
 // Code to control the DC Motors using information from the IR Sensors
 
-// pins connecting arduino to motors through hbridge
+// pins connecting arduino to motors through H-Bridge
 const int RMOTOR_1 = 9;
 const int RMOTOR_2 = 10;
 const int LMOTOR_1 = 6;
@@ -154,6 +154,7 @@ void loop() {
 
 //Motion controls: Control direction of the buggy
 // Right motor is slightly slower than the left one due to friction/wear/etc... so we give it a higher voltage than the left one (ie its been calibrated)
+
 void forward()
 {
   analogWrite(LMOTOR_1, 207);
@@ -186,7 +187,7 @@ void spin_left()
   analogWrite(RMOTOR_2, 0);
 }
 
-void spin_right()
+void spin_right() // this function was not used
 {
   analogWrite(LMOTOR_1, 255);
   analogWrite(LMOTOR_2, 0);
