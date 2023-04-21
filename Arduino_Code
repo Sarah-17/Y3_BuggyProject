@@ -138,6 +138,7 @@ void loop() {
 
   if (digitalRead(2) != prev)
     {
+    // Out puts velocity which is fed into processing
       currMillis = millis();
       float velocity = ((0.2127120026 * 100) / ((currMillis - prevMillis))); //cm/s
       Serial.println(velocity);
